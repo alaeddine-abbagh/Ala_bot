@@ -3,7 +3,8 @@ from langchain.prompts import ChatPromptTemplate, MessagesPlaceholder, SystemMes
 from langchain.schema import StrOutputParser
 from langchain.chains import LLMChain
 from langchain.memory import ConversationBufferMemory
-from langchain_community.document_loaders import PyPDFLoader, CSVLoader
+from langchain_community.document_loaders import PyPDFLoader
+from langchain.text_splitter import RecursiveCharacterTextSplitter
 from dotenv import load_dotenv
 import os
 import logging
@@ -26,12 +27,36 @@ def num_tokens_from_string(string: str, encoding_name: str = "cl100k_base") -> i
 
 async def summarize_file(file_content: str) -> str:
     llm = cl.user_session.get("llm")
-    prompt = ChatPromptTemplate.from_template(
-        "Please provide a concise summary of the following document:\n\n{document}"
+    
+    # Split the content into chunks
+    text_splitter = RecursiveCharacterTextSplitter(
+        chunk_size=4000,
+        chunk_overlap=200,
+        length_function=len,
     )
-    chain = prompt | llm | StrOutputParser()
-    summary = await chain.ainvoke({"document": file_content})
-    return summary
+    chunks = text_splitter.split_text(file_content)
+    
+    # Summarize each chunk
+    summaries = []
+    for chunk in chunks:
+        prompt = ChatPromptTemplate.from_template(
+            "Please provide a concise summary of the following text chunk:\n\n{chunk}"
+        )
+        chain = prompt | llm | StrOutputParser()
+        summary = await chain.ainvoke({"chunk": chunk})
+        summaries.append(summary)
+    
+    # Combine summaries
+    combined_summary = "\n\n".join(summaries)
+    
+    # Create a final summary
+    final_prompt = ChatPromptTemplate.from_template(
+        "Please provide a concise overall summary of the following summaries:\n\n{summaries}"
+    )
+    final_chain = final_prompt | llm | StrOutputParser()
+    final_summary = await final_chain.ainvoke({"summaries": combined_summary})
+    
+    return final_summary
 
 # Set up logging for debugging purposes
 logging.basicConfig(level=logging.DEBUG)
