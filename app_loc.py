@@ -117,6 +117,13 @@ async def on_message(message: cl.Message):
                 cl.Action(name="summarize", value="summarize", label="Summarize File")
             ]
             await cl.Message(content=f"File uploaded successfully. Would you like to summarize it?", actions=actions).send()
+            
+            # Wait for user action
+            res = await cl.AskActionMessage(content="Choose an action:", actions=actions).send()
+            if res and res.get("value") == "summarize":
+                summary = await summarize_file(file_content)
+                await cl.Message(content=f"Summary of the file:\n\n{summary}").send()
+                return
         except ValueError as e:
             await cl.Message(content=str(e)).send()
             return
@@ -135,13 +142,6 @@ async def on_message(message: cl.Message):
         )
         response = conversation.predict(question=content)
         await cl.Message(content=response).send()
-
-@cl.on_chat_action
-async def on_chat_action(action):
-    if action.name == "summarize":
-        file_content = cl.user_session.get("file_content", "")
-        summary = await summarize_file(file_content)
-        await cl.Message(content=f"Summary of the file:\n\n{summary}").send()
 
 @cl.on_chat_end
 async def on_chat_end():
