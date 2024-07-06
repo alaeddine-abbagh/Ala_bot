@@ -94,9 +94,6 @@ async def on_chat_start():
 
     llm = ChatOpenAI(model="gpt4o", client = client.chat.completions, api_key = "FAKE_KEY")
     
-    # Create a temporary directory and store it in the user session
-    temp_dir = tempfile.mkdtemp(dir=".")
-    cl.user_session.set("temp_dir", temp_dir)
     memory = ConversationBufferMemory(memory_key="chat_history", return_messages=True)
     prompt = ChatPromptTemplate(
         messages=[
@@ -114,35 +111,23 @@ async def on_chat_start():
     cl.user_session.set("memory", memory)
 
 async def process_file(element):
-    temp_dir = cl.user_session.get("temp_dir")
     file_content = ""
-    temp_file_path = os.path.join(temp_dir, element.name)
-    with open(temp_file_path, 'wb') as f:
-        f.write(element.content)
     
     if element.name.lower().endswith('.pdf'):
-        pages = PyPDFLoader(temp_file_path).load()
+        pdf_content = element.content
+        pdf_file = io.BytesIO(pdf_content)
+        pages = PyPDFLoader(pdf_file).load()
         for page in pages:
             file_content += "\n\n" + page.page_content
     elif element.name.lower().endswith('.csv'):
-        encodings = ['utf-8', 'iso-8859-1', 'windows-1252']
-        for encoding in encodings:
-            try:
-                with open(temp_file_path, 'r', encoding=encoding) as f:
-                    csv_content = f.read()
-                    csv_file = io.StringIO(csv_content)
-                    csv_reader = csv.reader(csv_file)
-                    for row in csv_reader:
-                        file_content += "\n" + ",".join(row)
-                break  # If successful, exit the loop
-            except UnicodeDecodeError:
-                continue  # Try the next encoding
-        else:
-            # If all encodings fail
-            raise ValueError(f"Unable to decode CSV file: {element.name}")
+        csv_content = element.content.decode('utf-8')
+        csv_file = io.StringIO(csv_content)
+        csv_reader = csv.reader(csv_file)
+        for row in csv_reader:
+            file_content += "\n" + ",".join(row)
     elif element.name.lower().endswith(('.ppt', '.pptx')):
         try:
-            with zipfile.ZipFile(temp_file_path) as zf:
+            with zipfile.ZipFile(io.BytesIO(element.content)) as zf:
                 for filename in zf.namelist():
                     if filename.startswith('ppt/slides/slide'):
                         content = zf.read(filename).decode('utf-8', errors='ignore')
@@ -152,9 +137,6 @@ async def process_file(element):
             raise ValueError(f"Error processing PPT file: {element.name}. Error: {str(e)}")
     else:
         raise ValueError(f"Unsupported file type: {element.name}")
-    
-    # Remove the temporary file
-    os.remove(temp_file_path)
     
     # Count tokens
     token_count = num_tokens_from_string(file_content)
@@ -219,7 +201,5 @@ async def on_message(message: cl.Message):
 
 @cl.on_chat_end
 async def on_chat_end():
-    # Clean up the temporary directory
-    temp_dir = cl.user_session.get("temp_dir")
-    if temp_dir and os.path.exists(temp_dir):
-        shutil.rmtree(temp_dir)
+    # Clean up any resources if needed
+    pass
