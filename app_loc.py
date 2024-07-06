@@ -17,6 +17,9 @@ import shutil
 
 load_dotenv()
 
+# Set the theme to dark mode
+cl.user_session.set("theme", "dark")
+
 # Create a temporary directory
 temp_dir = tempfile.mkdtemp(dir=".")
 
