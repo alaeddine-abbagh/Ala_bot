@@ -15,6 +15,8 @@ from langchain.text_splitter import RecursiveCharacterTextSplitter
 import logging
 import csv
 import io
+import zipfile
+import re
 
 import chainlit as cl
 
@@ -96,6 +98,17 @@ async def on_message(message: cl.Message):
                 else:
                     # If all encodings fail
                     await cl.Message(content=f"Unable to decode CSV file: {element.name}").send()
+                    return
+            elif element.name.lower().endswith(('.ppt', '.pptx')):
+                try:
+                    with zipfile.ZipFile(io.BytesIO(element.content)) as zf:
+                        for filename in zf.namelist():
+                            if filename.startswith('ppt/slides/slide'):
+                                content = zf.read(filename).decode('utf-8', errors='ignore')
+                                text = re.findall(r'<a:t>(.+?)</a:t>', content)
+                                file_content += "\n\n" + " ".join(text)
+                except Exception as e:
+                    await cl.Message(content=f"Error processing PPT file: {element.name}. Error: {str(e)}").send()
                     return
             else:
                 await cl.Message(content=f"Unsupported file type: {element.name}").send()
