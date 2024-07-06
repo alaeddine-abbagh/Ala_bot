@@ -1,6 +1,6 @@
 # Welcome to AirTech bot! 🚀🤖
 
-Hello! I'm AirTech bot, your AI assistant, here to help you with document analysis and answering questions. I'm designed to be user-friendly and efficient, even if you don't have a technical background.
+Hello! I'm Aladin bot, your AI assistant, here to help you with document analysis and answering questions. I'm designed to be user-friendly and efficient, even if you don't have a technical background.
 
 ## How to use this chatbot:
 
