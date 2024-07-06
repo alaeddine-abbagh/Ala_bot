@@ -12,8 +12,13 @@ import io
 import zipfile
 import re
 import chainlit as cl
+import tempfile
+import shutil
 
 load_dotenv()
+
+# Create a temporary directory
+temp_dir = tempfile.mkdtemp(dir=".")
 
 async def summarize_file(file_content: str) -> str:
     llm = cl.user_session.get("llm")
@@ -29,12 +34,15 @@ logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
 @cl.on_chat_start
-def on_chat_start():
+async def on_chat_start():
     api_key = os.getenv("OPENAI_API_KEY") 
     if not api_key:
         raise ValueError("OPENAI_API_KEY environment variable is not set")
     
     llm = ChatOpenAI(model="gpt-4", api_key=api_key)  # Explicitly use the API key
+    
+    # Store the temp_dir in the user session
+    cl.user_session.set("temp_dir", temp_dir)
     memory = ConversationBufferMemory(memory_key="chat_history", return_messages=True)
     prompt = ChatPromptTemplate(
         messages=[
@@ -55,21 +63,27 @@ def on_chat_start():
 async def on_message(message: cl.Message):
     file_content = ""
     content = message.content
+    temp_dir = cl.user_session.get("temp_dir")
     if message.elements:
         for element in message.elements:
+            # Save the file to the temporary directory
+            temp_file_path = os.path.join(temp_dir, element.name)
+            with open(temp_file_path, 'wb') as f:
+                f.write(element.content)
+            
             if element.name.lower().endswith('.pdf'):
-                pages = PyPDFLoader(element.path).load()
+                pages = PyPDFLoader(temp_file_path).load()
                 for page in pages:
                     file_content += "\n\n" + page.page_content
             elif element.name.lower().endswith('.csv'):
                 encodings = ['utf-8', 'iso-8859-1', 'windows-1252']
                 for encoding in encodings:
                     try:
-                        csv_content = element.content.decode(encoding)
-                        csv_loader = CSVLoader(file_path=io.StringIO(csv_content))
-                        documents = csv_loader.load()
-                        for doc in documents:
-                            file_content += "\n\n" + doc.page_content
+                        with open(temp_file_path, 'r', encoding=encoding) as f:
+                            csv_loader = CSVLoader(file_path=f)
+                            documents = csv_loader.load()
+                            for doc in documents:
+                                file_content += "\n\n" + doc.page_content
                         break  # If successful, exit the loop
                     except UnicodeDecodeError:
                         continue  # Try the next encoding
@@ -79,7 +93,7 @@ async def on_message(message: cl.Message):
                     return
             elif element.name.lower().endswith(('.ppt', '.pptx')):
                 try:
-                    with zipfile.ZipFile(io.BytesIO(element.content)) as zf:
+                    with zipfile.ZipFile(temp_file_path) as zf:
                         for filename in zf.namelist():
                             if filename.startswith('ppt/slides/slide'):
                                 content = zf.read(filename).decode('utf-8', errors='ignore')
@@ -91,6 +105,9 @@ async def on_message(message: cl.Message):
             else:
                 await cl.Message(content=f"Unsupported file type: {element.name}").send()
                 return
+            
+            # Remove the temporary file
+            os.remove(temp_file_path)
 
         # Add a button to summarize the file
         actions = [
@@ -117,3 +134,10 @@ async def on_message(message: cl.Message):
     )
     response = conversation.predict(question=content)
     await cl.Message(content=response).send()
+
+@cl.on_chat_end
+async def on_chat_end():
+    # Clean up the temporary directory
+    temp_dir = cl.user_session.get("temp_dir")
+    if temp_dir and os.path.exists(temp_dir):
+        shutil.rmtree(temp_dir)
