@@ -116,10 +116,9 @@ async def on_message(message: cl.Message):
             actions = [
                 cl.Action(name="summarize", value="summarize", label="Summarize File")
             ]
-            await cl.Message(content=f"File uploaded successfully. Would you like to summarize it?", actions=actions).send()
-            
+                        
             # Wait for user action
-            res = await cl.AskActionMessage(content="Choose an action:", actions=actions).send()
+            res = await cl.AskActionMessage(content="File uploaded successfully. Would you like to summarize it?", actions=actions).send()
             if res and res.get("value") == "summarize":
                 summary = await summarize_file(file_content)
                 await cl.Message(content=f"Summary of the file:\n\n{summary}").send()
