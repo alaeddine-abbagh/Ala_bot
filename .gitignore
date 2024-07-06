@@ -1,6 +1,6 @@
 .aider*
-# Ignore app.py
-app.py
+# Ignore app.py (keep local copy)
+/app.py
 
 # Ignore bot_work folder
 bot_work/
