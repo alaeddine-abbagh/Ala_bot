@@ -3,7 +3,6 @@ from langchain.prompts import ChatPromptTemplate, MessagesPlaceholder, SystemMes
 from langchain.schema import StrOutputParser
 from langchain.chains import LLMChain
 from langchain.memory import ConversationBufferMemory
-from langchain_community.document_loaders import PyPDFLoader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from dotenv import load_dotenv
 import os
@@ -13,12 +12,11 @@ import io
 import zipfile
 import re
 import chainlit as cl
-import tempfile
-import shutil
 import tiktoken
 import httpx
 from httpx_auth import OAuth2ClientCredentials
 from openai import AzureOpenAI
+import PyPDF2
 
 load_dotenv()
 
