@@ -14,8 +14,15 @@ import re
 import chainlit as cl
 import tempfile
 import shutil
+import tiktoken
 
 load_dotenv()
+
+def num_tokens_from_string(string: str, encoding_name: str = "cl100k_base") -> int:
+    """Returns the number of tokens in a text string."""
+    encoding = tiktoken.get_encoding(encoding_name)
+    num_tokens = len(encoding.encode(string))
+    return num_tokens
 
 async def summarize_file(file_content: str) -> str:
     llm = cl.user_session.get("llm")
@@ -102,7 +109,11 @@ async def process_file(element):
     
     # Remove the temporary file
     os.remove(temp_file_path)
-    return file_content
+    
+    # Count tokens
+    token_count = num_tokens_from_string(file_content)
+    
+    return file_content, token_count
 
 @cl.on_message
 async def on_message(message: cl.Message):
@@ -112,14 +123,17 @@ async def on_message(message: cl.Message):
 
     if message.elements:
         try:
+            total_tokens = 0
             for element in message.elements:
-                file_content += await process_file(element)
+                processed_content, token_count = await process_file(element)
+                file_content += processed_content
+                total_tokens += token_count
             
             # Store the file content in the user session
             cl.user_session.set("file_content", file_content)
             
-            # Inform the user that the file was uploaded successfully
-            await cl.Message(content="File uploaded successfully. You can now ask questions about the file.").send()
+            # Inform the user that the file was uploaded successfully and display token count
+            await cl.Message(content=f"File uploaded successfully. Total tokens: {total_tokens}. You can now ask questions about the file.").send()
             return
         except ValueError as e:
             await cl.Message(content=str(e)).send()

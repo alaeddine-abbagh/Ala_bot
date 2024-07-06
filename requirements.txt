@@ -5,3 +5,4 @@ httpx-auth
 python-dotenv==1.0.0
 openai==0.27.8
 PyPDF2==3.0.1
+tiktoken
