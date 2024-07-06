@@ -1,1 +1,31 @@
 .aider*
+# Ignore app.py
+app.py
+
+# Ignore bot_work folder
+bot_work/
+
+# Ignore .env file
+.env
+
+# Ignore Python bytecode
+__pycache__/
+*.py[cod]
+
+# Ignore virtual environment
+venv/
+env/
+
+# Ignore IDE-specific files
+.vscode/
+.idea/
+
+# Ignore log files
+*.log
+
+# Ignore OS-specific files
+.DS_Store
+Thumbs.db
+
+# Ignore any local configuration files
+config.local.yaml
