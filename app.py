@@ -82,11 +82,21 @@ async def on_message(message: cl.Message):
                 for page in pages:
                     file_content += "\n\n" + page.page_content
             elif element.name.lower().endswith('.csv'):
-                csv_content = element.content.decode('utf-8')
-                csv_loader = CSVLoader(file_path=io.StringIO(csv_content))
-                documents = csv_loader.load()
-                for doc in documents:
-                    file_content += "\n\n" + doc.page_content
+                encodings = ['utf-8', 'iso-8859-1', 'windows-1252']
+                for encoding in encodings:
+                    try:
+                        csv_content = element.content.decode(encoding)
+                        csv_loader = CSVLoader(file_path=io.StringIO(csv_content))
+                        documents = csv_loader.load()
+                        for doc in documents:
+                            file_content += "\n\n" + doc.page_content
+                        break  # If successful, exit the loop
+                    except UnicodeDecodeError:
+                        continue  # Try the next encoding
+                else:
+                    # If all encodings fail
+                    await cl.Message(content=f"Unable to decode CSV file: {element.name}").send()
+                    return
             else:
                 await cl.Message(content=f"Unsupported file type: {element.name}").send()
                 return
