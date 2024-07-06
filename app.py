@@ -4,6 +4,7 @@ from langchain.schema import StrOutputParser
 from langchain.schema.runnable import Runnable
 from langchain.schema.runnable.config import RunnableConfig
 from langchain.chains import LLMChain
+from langchain.prompts import ChatPromptTemplate
 import httpx
 from httpx_auth import OAuth2ClientCredentials
 from dotenv import load_dotenv
@@ -21,6 +22,15 @@ import re
 import chainlit as cl
 
 load_dotenv()
+
+async def summarize_file(file_content: str) -> str:
+    llm = cl.user_session.get("llm")
+    prompt = ChatPromptTemplate.from_template(
+        "Please provide a concise summary of the following document:\n\n{document}"
+    )
+    chain = prompt | llm | StrOutputParser()
+    summary = await chain.ainvoke({"document": file_content})
+    return summary
 OIDC_ENDPOINT = os.environ.get('OIDC_ENDPOINT')
 OIDC_CLIENT_ID = os.environ.get('OIDC_CLIENT_ID')
 OIDC_CLIENT_SECRET = os.environ.get('OIDC_CLIENT_SECRET')
@@ -114,7 +124,20 @@ async def on_message(message: cl.Message):
                 await cl.Message(content=f"Unsupported file type: {element.name}").send()
                 return
 
-    content = "Voici le document: " + file_content + "\nVoici la question de l'utilisateur:\n" + content
+        # Add a button to summarize the file
+        actions = [
+            cl.Action(name="summarize", value="summarize", label="Summarize File")
+        ]
+        await cl.Message(content=f"File uploaded successfully. Would you like to summarize it?", actions=actions).send()
+        
+        # Wait for user action
+        res = await cl.AskActionMessage(content="Choose an action:", actions=actions).send()
+        if res and res.get("value") == "summarize":
+            summary = await summarize_file(file_content)
+            await cl.Message(content=f"Summary of the file:\n\n{summary}").send()
+
+    if content:
+        content = "Voici le document: " + file_content + "\nVoici la question de l'utilisateur:\n" + content
     llm = cl.user_session.get("llm")
     prompt = cl.user_session.get("prompt")
     memory = cl.user_session.get("memory")
