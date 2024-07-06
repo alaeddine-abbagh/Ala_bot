@@ -17,12 +17,6 @@ import shutil
 
 load_dotenv()
 
-# Set the theme to dark mode
-cl.user_session.set("theme", "dark")
-
-# Create a temporary directory
-temp_dir = tempfile.mkdtemp(dir=".")
-
 async def summarize_file(file_content: str) -> str:
     llm = cl.user_session.get("llm")
     prompt = ChatPromptTemplate.from_template(
@@ -38,13 +32,17 @@ logger = logging.getLogger(__name__)
 
 @cl.on_chat_start
 async def on_chat_start():
+    # Set the theme to dark mode
+    cl.user_session.set("theme", "dark")
+
     api_key = os.getenv("OPENAI_API_KEY") 
     if not api_key:
         raise ValueError("OPENAI_API_KEY environment variable is not set")
     
     llm = ChatOpenAI(model="gpt-4", api_key=api_key)  # Explicitly use the API key
     
-    # Store the temp_dir in the user session
+    # Create a temporary directory and store it in the user session
+    temp_dir = tempfile.mkdtemp(dir=".")
     cl.user_session.set("temp_dir", temp_dir)
     memory = ConversationBufferMemory(memory_key="chat_history", return_messages=True)
     prompt = ChatPromptTemplate(
@@ -62,7 +60,8 @@ async def on_chat_start():
     cl.user_session.set("prompt", prompt)
     cl.user_session.set("memory", memory)
 
-async def process_file(element, temp_dir):
+async def process_file(element):
+    temp_dir = cl.user_session.get("temp_dir")
     file_content = ""
     temp_file_path = os.path.join(temp_dir, element.name)
     with open(temp_file_path, 'wb') as f:
@@ -113,7 +112,7 @@ async def on_message(message: cl.Message):
     if message.elements:
         try:
             for element in message.elements:
-                file_content += await process_file(element, temp_dir)
+                file_content += await process_file(element)
             
             # Add a button to summarize the file
             actions = [
