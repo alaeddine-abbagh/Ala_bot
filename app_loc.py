@@ -157,8 +157,22 @@ async def on_message(message: cl.Message):
             # Store the file content in the user session
             cl.user_session.set("file_content", file_content)
             
-            # Inform the user that the file was uploaded successfully and display token count
-            await cl.Message(content=f"File uploaded successfully. Total tokens: {total_tokens}. You can now ask questions about the file.").send()
+            # Give the user options after file upload
+            actions = [
+                cl.Action(name="summarize", value="summarize", label="Summarize File"),
+                cl.Action(name="do_nothing", value="do_nothing", label="Do Nothing")
+            ]
+            res = await cl.AskActionMessage(
+                content=f"File uploaded successfully. Total tokens: {total_tokens}. What would you like to do?",
+                actions=actions
+            ).send()
+
+            if res:
+                if res.get("value") == "summarize":
+                    summary = await summarize_file(file_content)
+                    await cl.Message(content=f"Summary of the file:\n\n{summary}").send()
+                elif res.get("value") == "do_nothing":
+                    await cl.Message(content="Alright, no action taken. You can now ask questions about the file.").send()
             return
         except ValueError as e:
             await cl.Message(content=str(e)).send()
