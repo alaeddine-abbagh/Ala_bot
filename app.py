@@ -10,9 +10,11 @@ from dotenv import load_dotenv
 from openai import AzureOpenAI
 import os
 from langchain.memory import ConversationBufferMemory
-from langchain_community.document_loaders import PyPDFLoader
+from langchain_community.document_loaders import PyPDFLoader, CSVLoader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 import logging
+import csv
+import io
 
 import chainlit as cl
 
@@ -74,12 +76,21 @@ async def on_message(message: cl.Message):
     file_content = ""
     content = message.content
     if message.elements:
-        pages = PyPDFLoader(message.elements[0].path).load()
-        for page in pages:
-         file_content += "\n\n" + page.page_content
-   
+        for element in message.elements:
+            if element.name.lower().endswith('.pdf'):
+                pages = PyPDFLoader(element.path).load()
+                for page in pages:
+                    file_content += "\n\n" + page.page_content
+            elif element.name.lower().endswith('.csv'):
+                csv_content = element.content.decode('utf-8')
+                csv_loader = CSVLoader(file_path=io.StringIO(csv_content))
+                documents = csv_loader.load()
+                for doc in documents:
+                    file_content += "\n\n" + doc.page_content
+            else:
+                await cl.Message(content=f"Unsupported file type: {element.name}").send()
+                return
 
-    #print(file_content)
     content = "Voici le document: " + file_content + "\nVoici la question de l'utilisateur:\n" + content
     llm = cl.user_session.get("llm")
     prompt = cl.user_session.get("prompt")
