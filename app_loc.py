@@ -76,10 +76,11 @@ async def process_file(element):
         for encoding in encodings:
             try:
                 with open(temp_file_path, 'r', encoding=encoding) as f:
-                    csv_loader = CSVLoader(file_path=f)
-                    documents = csv_loader.load()
-                    for doc in documents:
-                        file_content += "\n\n" + doc.page_content
+                    csv_content = f.read()
+                    csv_file = io.StringIO(csv_content)
+                    csv_reader = csv.reader(csv_file)
+                    for row in csv_reader:
+                        file_content += "\n" + ",".join(row)
                 break  # If successful, exit the loop
             except UnicodeDecodeError:
                 continue  # Try the next encoding
