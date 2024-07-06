@@ -59,81 +59,89 @@ async def on_chat_start():
     cl.user_session.set("prompt", prompt)
     cl.user_session.set("memory", memory)
 
+async def process_file(element, temp_dir):
+    file_content = ""
+    temp_file_path = os.path.join(temp_dir, element.name)
+    with open(temp_file_path, 'wb') as f:
+        f.write(element.content)
+    
+    if element.name.lower().endswith('.pdf'):
+        pages = PyPDFLoader(temp_file_path).load()
+        for page in pages:
+            file_content += "\n\n" + page.page_content
+    elif element.name.lower().endswith('.csv'):
+        encodings = ['utf-8', 'iso-8859-1', 'windows-1252']
+        for encoding in encodings:
+            try:
+                with open(temp_file_path, 'r', encoding=encoding) as f:
+                    csv_loader = CSVLoader(file_path=f)
+                    documents = csv_loader.load()
+                    for doc in documents:
+                        file_content += "\n\n" + doc.page_content
+                break  # If successful, exit the loop
+            except UnicodeDecodeError:
+                continue  # Try the next encoding
+        else:
+            # If all encodings fail
+            raise ValueError(f"Unable to decode CSV file: {element.name}")
+    elif element.name.lower().endswith(('.ppt', '.pptx')):
+        try:
+            with zipfile.ZipFile(temp_file_path) as zf:
+                for filename in zf.namelist():
+                    if filename.startswith('ppt/slides/slide'):
+                        content = zf.read(filename).decode('utf-8', errors='ignore')
+                        text = re.findall(r'<a:t>(.+?)</a:t>', content)
+                        file_content += "\n\n" + " ".join(text)
+        except Exception as e:
+            raise ValueError(f"Error processing PPT file: {element.name}. Error: {str(e)}")
+    else:
+        raise ValueError(f"Unsupported file type: {element.name}")
+    
+    # Remove the temporary file
+    os.remove(temp_file_path)
+    return file_content
+
 @cl.on_message
 async def on_message(message: cl.Message):
-    file_content = ""
     content = message.content
     temp_dir = cl.user_session.get("temp_dir")
+    file_content = ""
+
     if message.elements:
-        for element in message.elements:
-            # Save the file to the temporary directory
-            temp_file_path = os.path.join(temp_dir, element.name)
-            with open(temp_file_path, 'wb') as f:
-                f.write(element.content)
+        try:
+            for element in message.elements:
+                file_content += await process_file(element, temp_dir)
             
-            if element.name.lower().endswith('.pdf'):
-                pages = PyPDFLoader(temp_file_path).load()
-                for page in pages:
-                    file_content += "\n\n" + page.page_content
-            elif element.name.lower().endswith('.csv'):
-                encodings = ['utf-8', 'iso-8859-1', 'windows-1252']
-                for encoding in encodings:
-                    try:
-                        with open(temp_file_path, 'r', encoding=encoding) as f:
-                            csv_loader = CSVLoader(file_path=f)
-                            documents = csv_loader.load()
-                            for doc in documents:
-                                file_content += "\n\n" + doc.page_content
-                        break  # If successful, exit the loop
-                    except UnicodeDecodeError:
-                        continue  # Try the next encoding
-                else:
-                    # If all encodings fail
-                    await cl.Message(content=f"Unable to decode CSV file: {element.name}").send()
-                    return
-            elif element.name.lower().endswith(('.ppt', '.pptx')):
-                try:
-                    with zipfile.ZipFile(temp_file_path) as zf:
-                        for filename in zf.namelist():
-                            if filename.startswith('ppt/slides/slide'):
-                                content = zf.read(filename).decode('utf-8', errors='ignore')
-                                text = re.findall(r'<a:t>(.+?)</a:t>', content)
-                                file_content += "\n\n" + " ".join(text)
-                except Exception as e:
-                    await cl.Message(content=f"Error processing PPT file: {element.name}. Error: {str(e)}").send()
-                    return
-            else:
-                await cl.Message(content=f"Unsupported file type: {element.name}").send()
-                return
-            
-            # Remove the temporary file
-            os.remove(temp_file_path)
+            # Add a button to summarize the file
+            actions = [
+                cl.Action(name="summarize", value="summarize", label="Summarize File")
+            ]
+            await cl.Message(content=f"File uploaded successfully. Would you like to summarize it?", actions=actions).send()
+        except ValueError as e:
+            await cl.Message(content=str(e)).send()
+            return
 
-        # Add a button to summarize the file
-        actions = [
-            cl.Action(name="summarize", value="summarize", label="Summarize File")
-        ]
-        await cl.Message(content=f"File uploaded successfully. Would you like to summarize it?", actions=actions).send()
-        
-        # Wait for user action
-        res = await cl.AskActionMessage(content="Choose an action:", actions=actions).send()
-        if res and res.get("value") == "summarize":
-            summary = await summarize_file(file_content)
-            await cl.Message(content=f"Summary of the file:\n\n{summary}").send()
+    if content or file_content:
+        if file_content:
+            content = "Voici le document: " + file_content + "\nVoici la question de l'utilisateur:\n" + (content or "")
+        llm = cl.user_session.get("llm")
+        prompt = cl.user_session.get("prompt")
+        memory = cl.user_session.get("memory")
+        conversation = LLMChain(
+            llm=llm,
+            prompt=prompt,
+            verbose=True,
+            memory=memory
+        )
+        response = conversation.predict(question=content)
+        await cl.Message(content=response).send()
 
-    if content:
-        content = "Voici le document: " + file_content + "\nVoici la question de l'utilisateur:\n" + content
-    llm = cl.user_session.get("llm")
-    prompt = cl.user_session.get("prompt")
-    memory = cl.user_session.get("memory")
-    conversation = LLMChain(
-        llm=llm,
-        prompt=prompt,
-        verbose=True,
-        memory=memory
-    )
-    response = conversation.predict(question=content)
-    await cl.Message(content=response).send()
+@cl.on_chat_action
+async def on_chat_action(action):
+    if action.name == "summarize":
+        file_content = cl.user_session.get("file_content", "")
+        summary = await summarize_file(file_content)
+        await cl.Message(content=f"Summary of the file:\n\n{summary}").send()
 
 @cl.on_chat_end
 async def on_chat_end():
