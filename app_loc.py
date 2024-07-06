@@ -95,7 +95,8 @@ async def process_file(element):
     if element.name.lower().endswith('.pdf'):
         pdf_content = element.content
         pdf_file = io.BytesIO(pdf_content)
-        pages = PyPDFLoader(pdf_file).load()
+        loader = PyPDFLoader(str(element.name))
+        pages = loader.load_and_split()
         for page in pages:
             file_content += "\n\n" + page.page_content
     elif element.name.lower().endswith('.csv'):
