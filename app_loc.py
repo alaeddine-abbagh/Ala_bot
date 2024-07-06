@@ -114,20 +114,8 @@ async def on_message(message: cl.Message):
             for element in message.elements:
                 file_content += await process_file(element)
             
-            # Add buttons to summarize the file or ask questions
-            actions = [
-                cl.Action(name="summarize", value="summarize", label="Summarize File"),
-                cl.Action(name="ask", value="ask", label="Ask Questions")
-            ]
-                        
-            # Wait for user action
-            res = await cl.AskActionMessage(content="File uploaded successfully. What would you like to do?", actions=actions).send()
-            if res:
-                if res.get("value") == "summarize":
-                    summary = await summarize_file(file_content)
-                    await cl.Message(content=f"Summary of the file:\n\n{summary}").send()
-                elif res.get("value") == "ask":
-                    await cl.Message(content="Great! You can now ask questions about the file. What would you like to know?").send()
+            # Inform the user that the file was uploaded successfully
+            await cl.Message(content="File uploaded successfully. You can now ask questions about the file.").send()
             return
         except ValueError as e:
             await cl.Message(content=str(e)).send()
