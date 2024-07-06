@@ -107,12 +107,15 @@ async def process_file(element):
 async def on_message(message: cl.Message):
     content = message.content
     temp_dir = cl.user_session.get("temp_dir")
-    file_content = ""
+    file_content = cl.user_session.get("file_content", "")
 
     if message.elements:
         try:
             for element in message.elements:
                 file_content += await process_file(element)
+            
+            # Store the file content in the user session
+            cl.user_session.set("file_content", file_content)
             
             # Inform the user that the file was uploaded successfully
             await cl.Message(content="File uploaded successfully. You can now ask questions about the file.").send()
@@ -121,9 +124,10 @@ async def on_message(message: cl.Message):
             await cl.Message(content=str(e)).send()
             return
 
-    if content or file_content:
-        if file_content:
-            content = "Voici le document: " + file_content + "\nVoici la question de l'utilisateur:\n" + (content or "")
+    if content:
+        # Always include the file content with the question
+        full_content = f"Voici le document:\n{file_content}\n\nVoici la question de l'utilisateur:\n{content}"
+        
         llm = cl.user_session.get("llm")
         prompt = cl.user_session.get("prompt")
         memory = cl.user_session.get("memory")
@@ -133,7 +137,7 @@ async def on_message(message: cl.Message):
             verbose=True,
             memory=memory
         )
-        response = conversation.predict(question=content)
+        response = conversation.predict(question=full_content)
         await cl.Message(content=response).send()
 
 @cl.on_chat_end
