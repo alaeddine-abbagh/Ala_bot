@@ -30,7 +30,11 @@ logger = logging.getLogger(__name__)
 
 @cl.on_chat_start
 def on_chat_start():
-    llm = ChatOpenAI(model="gpt-4")  # Use your preferred model here
+    api_key = os.getenv("OPENAI_API_KEY")
+    if not api_key:
+        raise ValueError("OPENAI_API_KEY environment variable is not set")
+    
+    llm = ChatOpenAI(model="gpt-4", api_key=api_key)  # Explicitly use the API key
     memory = ConversationBufferMemory(memory_key="chat_history", return_messages=True)
     prompt = ChatPromptTemplate(
         messages=[
