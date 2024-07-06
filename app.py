@@ -1,4 +1,4 @@
-from langchain.chat_models import ChatOpenAI
+from langchain_community.chat_models import ChatOpenAI
 from langchain.prompts import ChatPromptTemplate, MessagesPlaceholder, SystemMessagePromptTemplate, HumanMessagePromptTemplate
 from langchain.schema import StrOutputParser
 from langchain.schema.runnable import Runnable
@@ -12,7 +12,7 @@ from openai import AzureOpenAI
 import os
 from langchain.memory import ConversationBufferMemory
 from langchain_community.document_loaders import PyPDFLoader, CSVLoader
-from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain_community.text_splitter import RecursiveCharacterTextSplitter
 import logging
 import csv
 import io
